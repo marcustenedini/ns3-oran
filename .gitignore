@@ -55,6 +55,7 @@ cmake-build-release/
 .cache/
 
 docs/
+outputs/
 local_build.sh
 CellIdStats.txt
 CellIdStatsHandover.txt

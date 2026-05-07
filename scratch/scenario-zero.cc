@@ -28,6 +28,7 @@
 #include "ns3/epc-helper.h"
 #include "ns3/mmwave-point-to-point-epc-helper.h"
 #include "ns3/lte-helper.h"
+#include <filesystem>
 
 using namespace ns3;
 using namespace mmwave;
@@ -193,7 +194,7 @@ static ns3::GlobalValue g_e2TermIp ("e2TermIp", "The IP address of the RIC E2 te
 static ns3::GlobalValue
     g_enableE2FileLogging ("enableE2FileLogging",
                            "If true, generate offline file logging instead of connecting to RIC",
-                           ns3::BooleanValue (false), ns3::MakeBooleanChecker ());
+                           ns3::BooleanValue (true), ns3::MakeBooleanChecker ());
 
 static ns3::GlobalValue g_controlFileName ("controlFileName",
                                            "The path to the control file (can be absolute)",
@@ -203,9 +204,16 @@ static ns3::GlobalValue g_controlFileName ("controlFileName",
 static ns3::GlobalValue q_useSemaphores ("useSemaphores", "If true, enables the use of semaphores for external environment control",
                                         ns3::BooleanValue (false), ns3::MakeBooleanChecker ());
 
+static ns3::GlobalValue g_outputDir ("outputDir",
+                                     "Directory used to store scenario output files",
+                                     ns3::StringValue ("outputs/scenario-zero"),
+                                     ns3::MakeStringChecker ());
+
 int
 main (int argc, char *argv[])
 {
+  namespace fs = std::filesystem;
+
   LogComponentEnableAll (LOG_PREFIX_ALL);
   // LogComponentEnable ("RicControlMessage", LOG_LEVEL_ALL);
   // LogComponentEnable ("Asn1Types", LOG_LEVEL_LOGIC);
@@ -278,12 +286,34 @@ main (int argc, char *argv[])
   GlobalValue::GetValueByName ("useSemaphores", booleanValue);
   bool useSemaphores = booleanValue.Get ();
 
+  GlobalValue::GetValueByName ("outputDir", stringValue);
+  std::string outputDir = stringValue.Get ();
+
 
   NS_LOG_UNCOND ("e2lteEnabled " << e2lteEnabled << " e2nrEnabled " << e2nrEnabled << " e2du "
                                  << e2du << " e2cuCp " << e2cuCp << " e2cuUp " << e2cuUp
                                  << " controlFilename " << controlFilename
                                  << " useSemaphores " << useSemaphores
                                  << " indicationPeriodicity " << indicationPeriodicity);
+
+  if (!outputDir.empty ())
+    {
+      fs::path outputPath (outputDir);
+      std::error_code ec;
+      fs::create_directories (outputPath, ec);
+      if (ec)
+        {
+          NS_FATAL_ERROR ("Could not create output directory " << outputDir << ": " << ec.message ());
+        }
+
+      fs::current_path (outputPath, ec);
+      if (ec)
+        {
+          NS_FATAL_ERROR ("Could not switch to output directory " << outputDir << ": " << ec.message ());
+        }
+
+      NS_LOG_UNCOND ("Scenario outputs will be written to " << fs::current_path ().string ());
+    }
 
   Config::SetDefault ("ns3::LteEnbNetDevice::UseSemaphores", BooleanValue (useSemaphores));
   Config::SetDefault ("ns3::LteEnbNetDevice::ControlFileName", StringValue (controlFilename));
