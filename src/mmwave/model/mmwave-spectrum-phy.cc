@@ -1028,6 +1028,19 @@ MmWaveSpectrumPhy::UpdateSinrPerceived(const SpectrumValue& sinr)
 }
 
 void
+MmWaveSpectrumPhy::UpdatePowerPerceived(const SpectrumValue& power)
+{
+    NS_LOG_FUNCTION(this << power);
+    m_powerPerceived = power;
+}
+
+SpectrumValue&
+MmWaveSpectrumPhy::GetPowerPerceived()
+{
+    return m_powerPerceived;
+}
+
+void
 MmWaveSpectrumPhy::SetHarqPhyModule(Ptr<MmWaveHarqPhy> harq)
 {
     m_harqPhyModule = harq;

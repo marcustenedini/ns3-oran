@@ -47,7 +47,7 @@ using namespace ns3;
 using namespace mmwave;
 
 /**
- * Scenario Zero
+ * Scenario Six
  *
  */
 struct SignalMetrics
@@ -72,7 +72,7 @@ std::ofstream g_csvFile;
 std::ofstream g_positionCsvFile;
 std::ofstream g_appMetricsCsvFile;
 
-NS_LOG_COMPONENT_DEFINE ("ScenarioZero");
+NS_LOG_COMPONENT_DEFINE ("ScenarioSix");
 
 
 
@@ -126,6 +126,52 @@ CreateScenarioBuilding (std::vector<Box> &buildingBoxes,
   Ptr<Building> building = CreateObject<Building> ();
   building->SetBoundaries (box);
   buildingBoxes.push_back (box);
+}
+
+static void
+CreateWindowedBuilding (std::vector<Box> &buildingBoxes,
+                        double xCenter,
+                        double yCenter,
+                        double xSize,
+                        double ySize,
+                        double height)
+{
+  const double wall = 2.0;
+  const double opening = 4.0;
+  const double horizontalLength = (xSize - opening) / 2.0;
+  const double horizontalOffset = (opening + horizontalLength) / 2.0;
+  const double verticalAvailable = ySize - 2.0 * wall;
+  const double verticalLength = (verticalAvailable - opening) / 2.0;
+  const double verticalOffset = (opening + verticalLength) / 2.0;
+
+  for (double ySide : {-1.0, 1.0})
+    {
+      for (double xSide : {-1.0, 1.0})
+        {
+          CreateScenarioBuilding (buildingBoxes,
+                                  xCenter + xSide * horizontalOffset,
+                                  yCenter + ySide * (ySize - wall) / 2.0,
+                                  horizontalLength, wall, height - 0.5);
+        }
+    }
+  for (double xSide : {-1.0, 1.0})
+    {
+      for (double ySide : {-1.0, 1.0})
+        {
+          CreateScenarioBuilding (buildingBoxes,
+                                  xCenter + xSide * (xSize - wall) / 2.0,
+                                  yCenter + ySide * verticalOffset,
+                                  wall, verticalLength, height - 0.5);
+        }
+    }
+
+  // Thin roof slab: the facade openings remain unobstructed below the roof.
+  Box roof (xCenter - xSize / 2.0, xCenter + xSize / 2.0,
+            yCenter - ySize / 2.0, yCenter + ySize / 2.0,
+            height - 0.5, height);
+  Ptr<Building> roofBuilding = CreateObject<Building> ();
+  roofBuilding->SetBoundaries (roof);
+  buildingBoxes.push_back (roof);
 }
 
 void
@@ -541,7 +587,7 @@ static ns3::GlobalValue q_useSemaphores ("useSemaphores", "If true, enables the 
 
 static ns3::GlobalValue g_outputDir ("outputDir",
                                      "Directory used to store scenario output files",
-                                     ns3::StringValue ("outputs/scenario-zero"),
+                                     ns3::StringValue ("outputs/scenario-six"),
                                      ns3::MakeStringChecker ());
 
 static ns3::GlobalValue g_signalSamplePeriod ("signalSamplePeriod",
@@ -569,10 +615,10 @@ main (int argc, char *argv[])
 
   uint32_t nMmWaveEnbNodes = 3;
   uint32_t nLteEnbNodes = 1;
-  uint32_t ues = 5;
+  uint32_t ues = 10;
 
   // Distance between the mmWave BSs and the two co-located LTE and mmWave BSs in meters
-  double isd = 1200.0; // side length of the equilateral mmWave gNB triangle
+  double isd = 615.0; // longest triangle side, used only to scale UE mobility
   double minSpeed= 2.0;
   double maxSpeed= 10.0;
   uint32_t rngRun = 1;
@@ -582,7 +628,6 @@ main (int argc, char *argv[])
 
   cmd.AddValue("nmmWave", "Number of mmWave gNBs; scenario-zero uses 3 for the equilateral layout", nMmWaveEnbNodes);
   cmd.AddValue("nUes", "Number of UEs", ues);
-  cmd.AddValue ("isd", "Side length of the equilateral gNB triangle in meters", isd);
   cmd.AddValue ("minSpeed", "Minimum UE speed (m/s)", minSpeed);
   cmd.AddValue ("maxSpeed", "Maximum UE speed (m/s)", maxSpeed);
   cmd.AddValue ("rngRun", "Random Number Generator Run", rngRun);
@@ -594,11 +639,11 @@ main (int argc, char *argv[])
 
   if (nMmWaveEnbNodes != 3)
     {
-      NS_FATAL_ERROR ("scenario-zero requires exactly 3 mmWave gNBs for the equilateral-triangle layout");
+      NS_FATAL_ERROR ("scenario-six requires exactly 3 mmWave gNBs");
     }
 
 
-  uint8_t nUeNodes = ues * nMmWaveEnbNodes;
+  uint32_t nUeNodes = ues * nMmWaveEnbNodes;
   bool harqEnabled = true;
 
   UintegerValue uintegerValue;
@@ -816,23 +861,26 @@ main (int argc, char *argv[])
   allEnbNodes.Add (lteEnbNodes);
   allEnbNodes.Add (mmWaveEnbNodes);
 
-  // Position: LTE anchor in the centroid and three mmWave gNBs at the vertices of an
-  // equilateral triangle. The --isd parameter is the triangle side length.
-  Vector centerPosition = Vector (maxXAxis / 2, maxYAxis / 2, 3);
-  double triangleRadius = isd / std::sqrt (3.0);
+  // Fixed scalene triangle: gNB1-gNB2=615 m, gNB1-gNB3=585 m,
+  // and gNB2-gNB3=500 m. LTE is co-located with gNB1.
+  const double d12 = 615.0;
+  const double d13 = 585.0;
+  const double d23 = 500.0;
+  const double gnb3RelativeX =
+      (d13 * d13 + d12 * d12 - d23 * d23) / (2.0 * d12);
+  const double gnb3RelativeY =
+      std::sqrt (d13 * d13 - gnb3RelativeX * gnb3RelativeX);
+
+  Vector centerPosition = Vector (maxXAxis / 2.0, maxYAxis / 2.0, 20.0);
   std::vector<Vector> mmWavePositions;
-  mmWavePositions.push_back (Vector (centerPosition.x,
-                                     centerPosition.y + triangleRadius,
-                                     3));
-  mmWavePositions.push_back (Vector (centerPosition.x - isd / 2.0,
-                                     centerPosition.y - triangleRadius / 2.0,
-                                     3));
-  mmWavePositions.push_back (Vector (centerPosition.x + isd / 2.0,
-                                     centerPosition.y - triangleRadius / 2.0,
-                                     3));
+  mmWavePositions.push_back (centerPosition);
+  mmWavePositions.push_back (Vector (centerPosition.x + d12, centerPosition.y, 25.0));
+  mmWavePositions.push_back (Vector (centerPosition.x + gnb3RelativeX,
+                                     centerPosition.y + gnb3RelativeY,
+                                     25.0));
 
   Ptr<ListPositionAllocator> enbPositionAlloc = CreateObject<ListPositionAllocator> ();
-  enbPositionAlloc->Add (centerPosition); // LTE anchor
+  enbPositionAlloc->Add (centerPosition); // LTE anchor co-located with gNB1
   for (const auto &position : mmWavePositions)
     {
       enbPositionAlloc->Add (position);
@@ -843,76 +891,136 @@ main (int argc, char *argv[])
   enbmobility.SetPositionAllocator (enbPositionAlloc);
   enbmobility.Install (allEnbNodes);
 
-  // Buildings distributed through the triangle. The layout intentionally creates
-  // obstructed corridors between pairs of gNBs instead of concentrating blockers
-  // near the centroid only. Some UE initial positions are placed inside these boxes;
-  // others start in open areas.
+  // Windowed, roofed supporting building below cell 2 (gNB1 + LTE).
   std::vector<Box> buildingBoxes;
-  double buildingHeight = 35.0;
-  for (const auto &position : mmWavePositions)
-    {
-      CreateScenarioBuilding (buildingBoxes, position.x + 115.0, position.y + 95.0, 120.0, 105.0, buildingHeight);
-      CreateScenarioBuilding (buildingBoxes, position.x - 125.0, position.y - 105.0, 135.0, 115.0, buildingHeight);
-    }
+  CreateWindowedBuilding (buildingBoxes, mmWavePositions[0].x, mmWavePositions[0].y,
+                          83.0, 118.0, 10.0);
 
-  for (uint32_t i = 0; i < mmWavePositions.size (); ++i)
-    {
-      Vector a = mmWavePositions[i];
-      Vector b = mmWavePositions[(i + 1) % mmWavePositions.size ()];
-      double dx = b.x - a.x;
-      double dy = b.y - a.y;
-      double length = std::sqrt (dx * dx + dy * dy);
-      double nx = -dy / length;
-      double ny = dx / length;
-      for (uint32_t j = 1; j <= 3; ++j)
-        {
-          double t = static_cast<double> (j) / 4.0;
-          double side = (j % 2 == 0) ? -1.0 : 1.0;
-          double x = a.x + t * dx + side * nx * 115.0;
-          double y = a.y + t * dy + side * ny * 115.0;
-          if (i == 0 && j == 1)
-            {
-              x -= 40.0;
-            }
-          else if (i == 2 && j == 3)
-            {
-              x += 40.0;
-            }
-          if ((i == 0 && j == 3) || (i == 2 && j == 1))
-            {
-              y += 40.0;
-            }
-          double width = (j == 2) ? 210.0 : 155.0;
-          double depth = (j == 2) ? 85.0 : 120.0;
-          CreateScenarioBuilding (buildingBoxes, x, y, width, depth, buildingHeight + 5.0 * j);
-        }
-    }
+  // H-shaped building centered at gNB2 (cell 3).
+  const double hBarOffset = 25.0;
+  CreateScenarioBuilding (buildingBoxes, mmWavePositions[1].x - hBarOffset,
+                          mmWavePositions[1].y, 15.0, 80.0, 10.0);
+  CreateScenarioBuilding (buildingBoxes, mmWavePositions[1].x + hBarOffset,
+                          mmWavePositions[1].y, 15.0, 80.0, 10.0);
+  CreateScenarioBuilding (buildingBoxes, mmWavePositions[1].x,
+                          mmWavePositions[1].y + 15.0, 35.0, 20.0, 10.0);
+  CreateScenarioBuilding (buildingBoxes, mmWavePositions[1].x,
+                          mmWavePositions[1].y - 15.0, 35.0, 20.0, 10.0);
 
-  CreateScenarioBuilding (buildingBoxes, centerPosition.x, centerPosition.y + isd * 0.14, 230.0, 90.0, 38.0);
-  CreateScenarioBuilding (buildingBoxes, centerPosition.x - isd * 0.18, centerPosition.y + isd * 0.03, 170.0, 130.0, 32.0);
-  CreateScenarioBuilding (buildingBoxes, centerPosition.x + isd * 0.18, centerPosition.y + isd * 0.03, 170.0, 130.0, 32.0);
-  CreateScenarioBuilding (buildingBoxes, centerPosition.x, centerPosition.y - isd * 0.20, 260.0, 105.0, 42.0);
+  // The former gNB2 building is moved below gNB3.
+  CreateScenarioBuilding (buildingBoxes, mmWavePositions[2].x, mmWavePositions[2].y,
+                          35.0, 85.0, 15.0);
+
+  // Move the 400 x 200 m low-rise campus from cell 3 to cell 4 while
+  // preserving its scale and relative arrangement.
+  const double campusDx = mmWavePositions[2].x - mmWavePositions[1].x;
+  const double campusDy = mmWavePositions[2].y - mmWavePositions[1].y;
+  CreateWindowedBuilding (buildingBoxes, 2470.0 + campusDx, 1970.0 + campusDy, 25.0, 110.0, 4.0);
+  CreateWindowedBuilding (buildingBoxes, 2520.0 + campusDx, 2030.0 + campusDy, 25.0, 110.0, 4.0);
+
+  // Upper-left H-shaped low-rise complex.
+  CreateWindowedBuilding (buildingBoxes, 2250.0 + campusDx, 2040.0 + campusDy, 25.0, 90.0, 7.0);
+  CreateWindowedBuilding (buildingBoxes, 2320.0 + campusDx, 2040.0 + campusDy, 25.0, 90.0, 7.0);
+  CreateWindowedBuilding (buildingBoxes, 2285.0 + campusDx, 2040.0 + campusDy, 45.0, 20.0, 7.0);
+
+  // Lower-left U-shaped one-storey complex.
+  CreateWindowedBuilding (buildingBoxes, 2250.0 + campusDx, 1940.0 + campusDy, 20.0, 60.0, 4.0);
+  CreateWindowedBuilding (buildingBoxes, 2320.0 + campusDx, 1940.0 + campusDy, 20.0, 60.0, 4.0);
+  CreateWindowedBuilding (buildingBoxes, 2285.0 + campusDx, 1900.0 + campusDy, 70.0, 20.0, 4.0);
+
+  // Small two-storey complex immediately to the left/upper-left of gNB2.
+  CreateWindowedBuilding (buildingBoxes, 2570.0 + campusDx, 2070.0 + campusDy, 24.0, 55.0, 7.0);
+  CreateWindowedBuilding (buildingBoxes, 2605.0 + campusDx, 2080.0 + campusDy, 24.0, 40.0, 7.0);
+
+  const double blockerFraction = 300.0 / d23;
+  const double blockerX = mmWavePositions[1].x +
+                          blockerFraction * (mmWavePositions[2].x - mmWavePositions[1].x);
+  const double blockerY = mmWavePositions[1].y +
+                          blockerFraction * (mmWavePositions[2].y - mmWavePositions[1].y);
+  CreateScenarioBuilding (buildingBoxes, blockerX, blockerY, 127.0, 63.0, 10.0);
+
+  std::ofstream buildingCsv ("buildings.csv", std::ios::out | std::ios::trunc);
+  buildingCsv << "building_id,center_x_m,center_y_m,width_x_m,depth_y_m,height_m\n";
+  for (uint32_t i = 0; i < buildingBoxes.size (); ++i)
+    {
+      const Box &box = buildingBoxes[i];
+      buildingCsv << (i + 1) << ","
+                  << (box.xMin + box.xMax) / 2.0 << ","
+                  << (box.yMin + box.yMax) / 2.0 << ","
+                  << (box.xMax - box.xMin) << ","
+                  << (box.yMax - box.yMin) << ","
+                  << box.zMax << "\n";
+    }
+  buildingCsv.close ();
 
   MobilityHelper uemobility;
   Ptr<ListPositionAllocator> uePositionAlloc = CreateObject<ListPositionAllocator> ();
+  const uint32_t aroundEnd = nUeNodes * 2 / 5;
+  const uint32_t betweenEnd = nUeNodes * 3 / 5;
+  const uint32_t campusEnd = nUeNodes * 4 / 5;
+  const uint32_t aroundPerGnb = (aroundEnd + nMmWaveEnbNodes - 1) / nMmWaveEnbNodes;
+
+  std::vector<Vector> campusOffsets = {
+      Vector (-75.0, 65.0, 0.0),
+      Vector (-125.0, -10.0, 0.0),
+      Vector (-175.0, 70.0, 0.0),
+      Vector (-225.0, -55.0, 0.0),
+      Vector (-290.0, 35.0, 0.0),
+      Vector (-105.0, -85.0, 0.0)};
+
+  std::vector<Vector> indoorUePositions = {
+      Vector (mmWavePositions[1].x - hBarOffset, mmWavePositions[1].y, 1.5),
+      Vector (mmWavePositions[1].x + hBarOffset, mmWavePositions[1].y, 1.5),
+      Vector (mmWavePositions[1].x, mmWavePositions[1].y + 15.0, 1.5),
+      Vector (mmWavePositions[1].x, mmWavePositions[1].y - 15.0, 1.5),
+      Vector (mmWavePositions[2].x, mmWavePositions[2].y, 1.5),
+      Vector (blockerX, blockerY, 1.5)};
+
   for (uint32_t u = 0; u < nUeNodes; ++u)
     {
-      if ((u % 4 == 0) && !buildingBoxes.empty ())
+      if (u < aroundEnd)
         {
-          const Box &box = buildingBoxes[(u / 4) % buildingBoxes.size ()];
-          double xInside = box.xMin + 0.25 * (box.xMax - box.xMin) +
-                           0.10 * (u % 3) * (box.xMax - box.xMin);
-          double yInside = box.yMin + 0.30 * (box.yMax - box.yMin) +
-                           0.08 * (u % 2) * (box.yMax - box.yMin);
-          uePositionAlloc->Add (Vector (xInside, yInside, 1.5));
+          const uint32_t gnbIndex = u % nMmWaveEnbNodes;
+          const uint32_t localIndex = u / nMmWaveEnbNodes;
+          const Vector &gnbPosition = mmWavePositions[gnbIndex];
+          const double angle =
+              2.0 * M_PI * static_cast<double> (localIndex) /
+                  static_cast<double> (aroundPerGnb) +
+              static_cast<double> (gnbIndex) * M_PI / 6.0;
+          const double radius = 90.0 + 25.0 * static_cast<double> (localIndex % 3);
+          uePositionAlloc->Add (Vector (gnbPosition.x + radius * std::cos (angle),
+                                        gnbPosition.y + radius * std::sin (angle),
+                                        1.5));
+        }
+      else if (u < betweenEnd)
+        {
+          const uint32_t index = u - aroundEnd;
+          const uint32_t edge = index % nMmWaveEnbNodes;
+          const uint32_t lane = index / nMmWaveEnbNodes;
+          const Vector &a = mmWavePositions[edge];
+          const Vector &b = mmWavePositions[(edge + 1) % nMmWaveEnbNodes];
+          const double dx = b.x - a.x;
+          const double dy = b.y - a.y;
+          const double length = std::sqrt (dx * dx + dy * dy);
+          const double t = (lane % 2 == 0) ? 0.38 : 0.62;
+          const double lateral = (lane % 2 == 0) ? 35.0 : -35.0;
+          uePositionAlloc->Add (Vector (a.x + t * dx - lateral * dy / length,
+                                        a.y + t * dy + lateral * dx / length,
+                                        1.5));
+        }
+      else if (u < campusEnd)
+        {
+          const uint32_t index = u - betweenEnd;
+          const Vector &offset = campusOffsets[index % campusOffsets.size ()];
+          const double extraOffset = 12.0 * static_cast<double> (index / campusOffsets.size ());
+          uePositionAlloc->Add (Vector (mmWavePositions[2].x + offset.x - extraOffset,
+                                        mmWavePositions[2].y + offset.y,
+                                        1.5));
         }
       else
         {
-          double angle = 2.0 * M_PI * static_cast<double> (u) / static_cast<double> (nUeNodes);
-          double radius = isd * (0.20 + 0.45 * static_cast<double> ((u * 37) % 100) / 100.0);
-          uePositionAlloc->Add (Vector (centerPosition.x + radius * std::cos (angle),
-                                        centerPosition.y + radius * std::sin (angle),
-                                        1.5));
+          const uint32_t index = u - campusEnd;
+          uePositionAlloc->Add (indoorUePositions[index % indoorUePositions.size ()]);
         }
     }
 
@@ -921,7 +1029,7 @@ main (int argc, char *argv[])
   speed->SetAttribute ("Max", DoubleValue (maxSpeed));
 
   double mobilityMargin = 420.0;
-  double mobilityRadius = triangleRadius + mobilityMargin;
+  double mobilityRadius = d12 + mobilityMargin;
   uemobility.SetMobilityModel ("ns3::RandomWalk2dMobilityModel", "Speed",
                                PointerValue (speed), "Bounds",
                                RectangleValue (Rectangle (centerPosition.x - mobilityRadius,

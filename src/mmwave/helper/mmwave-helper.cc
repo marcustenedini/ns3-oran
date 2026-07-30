@@ -959,6 +959,9 @@ MmWaveHelper::InstallSingleMcUeDevice(Ptr<Node> n)
         pData->AddCallback(MakeCallback(&MmWaveUePhy::GenerateDlCqiReport, phy));
         pData->AddCallback(MakeCallback(&MmWaveSpectrumPhy::UpdateSinrPerceived, dlPhy));
         dlPhy->AddDataSinrChunkProcessor(pData);
+        Ptr<mmWaveChunkProcessor> pPower = Create<mmWaveChunkProcessor>();
+        pPower->AddCallback(MakeCallback(&MmWaveSpectrumPhy::UpdatePowerPerceived, dlPhy));
+        dlPhy->AddDataPowerChunkProcessor(pPower);
         if (m_harqEnabled)
         {
             // In lte-helper this is done in the last for cycle
@@ -1353,6 +1356,9 @@ MmWaveHelper::InstallSingleInterRatHoCapableUeDevice(Ptr<Node> n)
     mmWavepData->AddCallback (MakeCallback (&MmWaveUePhy::GenerateDlCqiReport, mmWavePhy));
     mmWavepData->AddCallback (MakeCallback (&MmWaveSpectrumPhy::UpdateSinrPerceived, mmWaveDlPhy));
     mmWaveDlPhy->AddDataSinrChunkProcessor (mmWavepData);
+    Ptr<mmWaveChunkProcessor> mmWavepPower = Create<mmWaveChunkProcessor> ();
+    mmWavepPower->AddCallback (MakeCallback (&MmWaveSpectrumPhy::UpdatePowerPerceived, mmWaveDlPhy));
+    mmWaveDlPhy->AddDataPowerChunkProcessor (mmWavepPower);
     if(m_harqEnabled)
     {
             mmWaveDlPhy->SetPhyDlHarqFeedbackCallback (MakeCallback
@@ -1616,6 +1622,9 @@ MmWaveHelper::InstallSingleUeDevice(Ptr<Node> n)
         pData->AddCallback(MakeCallback(&MmWaveUePhy::GenerateDlCqiReport, phy));
         pData->AddCallback(MakeCallback(&MmWaveSpectrumPhy::UpdateSinrPerceived, dlPhy));
         dlPhy->AddDataSinrChunkProcessor(pData);
+        Ptr<mmWaveChunkProcessor> pPower = Create<mmWaveChunkProcessor>();
+        pPower->AddCallback(MakeCallback(&MmWaveSpectrumPhy::UpdatePowerPerceived, dlPhy));
+        dlPhy->AddDataPowerChunkProcessor(pPower);
         if (m_harqEnabled)
         {
             // In lte-helper this is done in the last for cycle

@@ -897,7 +897,8 @@ MmWaveUePhy::GenerateDlCqiReport(const SpectrumValue& sinr)
             {
                 DoSendControlMessage(msg);
             }
-            m_reportCurrentCellRsrpSinrTrace(m_imsi, newSinr, newSinr);
+            m_reportCurrentCellRsrpSinrTrace(
+                m_imsi, m_cellId, newSinr, m_downlinkSpectrumPhy->GetPowerPerceived());
         }
     }
 }

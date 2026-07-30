@@ -243,7 +243,8 @@ class MmWaveUePhy : public MmWavePhy
     bool m_dlConfigured;
     bool m_ulConfigured;
 
-    TracedCallback<uint64_t, SpectrumValue&, SpectrumValue&> m_reportCurrentCellRsrpSinrTrace;
+    TracedCallback<uint64_t, uint16_t, SpectrumValue&, SpectrumValue&>
+        m_reportCurrentCellRsrpSinrTrace;
 
     TracedCallback<uint64_t, uint64_t> m_reportUlTbSize;
     TracedCallback<uint64_t, uint64_t> m_reportDlTbSize;

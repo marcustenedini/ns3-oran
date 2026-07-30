@@ -247,6 +247,8 @@ class MmWaveSpectrumPhy : public SpectrumPhy
     void AddDataSinrChunkProcessor(Ptr<mmWaveChunkProcessor> p);
 
     void UpdateSinrPerceived(const SpectrumValue& sinr);
+    void UpdatePowerPerceived(const SpectrumValue& power);
+    SpectrumValue& GetPowerPerceived();
 
     /**
      * Add the transport block that the spectrum should expect to receive.
@@ -322,6 +324,7 @@ class MmWaveSpectrumPhy : public SpectrumPhy
     TracedCallback<RxPacketTraceParams> m_rxPacketTraceUe;
 
     SpectrumValue m_sinrPerceived;
+    SpectrumValue m_powerPerceived;
 
     TbInfoMap_t m_transportBlocks;
 

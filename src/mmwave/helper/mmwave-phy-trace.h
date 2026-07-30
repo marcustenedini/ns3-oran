@@ -56,6 +56,7 @@ class MmWavePhyTrace : public Object
     static void ReportCurrentCellRsrpSinrCallback(Ptr<MmWavePhyTrace> phyStats,
                                                   std::string path,
                                                   uint64_t imsi,
+                                                  uint16_t cellId,
                                                   SpectrumValue& sinr,
                                                   SpectrumValue& power);
     static void ReportDownLinkTBSize(Ptr<MmWavePhyTrace> phyStats,

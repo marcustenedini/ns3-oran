@@ -122,9 +122,11 @@ void
 MmWavePhyTrace::ReportCurrentCellRsrpSinrCallback(Ptr<MmWavePhyTrace> phyStats,
                                                   std::string path,
                                                   uint64_t imsi,
+                                                  uint16_t cellId,
                                                   SpectrumValue& sinr,
                                                   SpectrumValue& power)
 {
+    (void)cellId;
     NS_LOG_INFO("UE" << imsi << "->Generate RsrpSinrTrace");
     // phyStats->ReportInterferenceTrace (imsi, sinr);
 }
